@@ -1,8 +1,10 @@
 package edu.harvard.iq.dataverse;
 
 import edu.harvard.iq.dataverse.branding.BrandingUtilTest;
+import edu.harvard.iq.dataverse.mail.CustomMailTextServiceBean;
 import edu.harvard.iq.dataverse.settings.JvmSettings;
 import edu.harvard.iq.dataverse.settings.SettingsServiceBean;
+import edu.harvard.iq.dataverse.util.BundleUtil;
 import edu.harvard.iq.dataverse.util.testing.JvmSetting;
 import edu.harvard.iq.dataverse.util.testing.LocalJvmSettings;
 import jakarta.mail.internet.AddressException;
@@ -20,6 +22,8 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.UnsupportedEncodingException;
+import java.util.Arrays;
+import java.util.List;
 
 import static edu.harvard.iq.dataverse.settings.SettingsServiceBean.Key;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -147,5 +151,87 @@ class MailServiceBeanTest {
             assertFalse(mailServiceBean.sendSystemEmail("target@example.org", "Test", "Test", false));
         }
     }
-    
+
+    /**
+     * Tests for {@link MailServiceBean#getMailText(String)} /
+     * {@link MailServiceBean#getMailText(String, java.util.List)}, i.e. the
+     * logic that decides whether an automatic email string comes from the
+     * "custommailtext" DB table or from Bundle.properties.
+     */
+    @Nested
+    class GetMailText {
+
+        @Mock
+        SettingsServiceBean settingsServiceBean;
+
+        @Mock
+        CustomMailTextServiceBean customMailTextService;
+
+        @InjectMocks
+        MailServiceBean mailServiceBean = new MailServiceBean();
+
+        // A key that really exists in Bundle.properties, so we can compare
+        // against BundleUtil directly instead of hard-coding English text.
+        private static final String KEY = "notification.email.closing";
+        private static final String KEY_WITH_ARGS = "notification.email.createDataverse";
+
+        @Test
+        void usesBundleWhenSettingIsOff() {
+            // isTrueForKey() is not stubbed, so the mock returns the Mockito
+            // default (false) for the boolean, meaning the DB is never consulted.
+            String expected = BundleUtil.getStringFromBundle(KEY);
+
+            String actual = mailServiceBean.getMailText(KEY);
+
+            assertEquals(expected, actual);
+            Mockito.verifyNoInteractions(customMailTextService);
+        }
+
+        @Test
+        void usesDatabaseOverrideWhenSettingIsOnAndOverrideExists() {
+            Mockito.when(settingsServiceBean.isTrueForKey(Key.CustomMailTextsEnabled, false)).thenReturn(true);
+            Mockito.when(customMailTextService.getText(Mockito.eq(KEY), Mockito.any()))
+                    .thenReturn("Our custom closing text.");
+
+            String actual = mailServiceBean.getMailText(KEY);
+
+            assertEquals("Our custom closing text.", actual);
+        }
+
+        @Test
+        void fallsBackToBundleWhenSettingIsOnButNoOverrideExists() {
+            Mockito.when(settingsServiceBean.isTrueForKey(Key.CustomMailTextsEnabled, false)).thenReturn(true);
+            Mockito.when(customMailTextService.getText(Mockito.eq(KEY), Mockito.any())).thenReturn(null);
+            String expected = BundleUtil.getStringFromBundle(KEY);
+
+            String actual = mailServiceBean.getMailText(KEY);
+
+            assertEquals(expected, actual);
+        }
+
+        @Test
+        void formatsArgumentsIntoDatabaseOverride() {
+            Mockito.when(settingsServiceBean.isTrueForKey(Key.CustomMailTextsEnabled, false)).thenReturn(true);
+            Mockito.when(customMailTextService.getText(Mockito.eq(KEY_WITH_ARGS), Mockito.any()))
+                    .thenReturn("Welcome to {0}, created on {1}.");
+
+            String actual = mailServiceBean.getMailText(KEY_WITH_ARGS, Arrays.asList("My Dataverse", "2026-07-08"));
+
+            assertEquals("Welcome to My Dataverse, created on 2026-07-08.", actual);
+        }
+
+        @Test
+        void formatsArgumentsWhenFallingBackToBundle() {
+            // Not stubbed -> isTrueForKey() defaults to false -> straight to Bundle.properties.
+            // notification.email.createDataverse has placeholders {0} through {5}.
+            List<String> arguments = Arrays.asList("My Dataverse", "http://example.org/dv", "Root",
+                    "http://example.org/dv/root", "http://example.org", "en");
+            String expected = BundleUtil.getStringFromBundle(KEY_WITH_ARGS, arguments);
+
+            String actual = mailServiceBean.getMailText(KEY_WITH_ARGS, arguments);
+
+            assertEquals(expected, actual);
+        }
+    }
+
 }

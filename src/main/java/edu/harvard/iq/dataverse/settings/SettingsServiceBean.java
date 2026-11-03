@@ -60,6 +60,15 @@ public class SettingsServiceBean {
      */
     @SuppressWarnings("java:S115")
     public enum Key {
+        /**
+         * When true, MailServiceBean looks up automatic email/notification
+         * texts in the "custommailtext" DB table first (see
+         * {@code CustomMailTextServiceBean}), falling back to
+         * Bundle.properties for any key/locale that has no override.
+         * When false (the default), Bundle.properties is used exclusively,
+         * preserving the historical behavior.
+         */
+        CustomMailTextsEnabled,
         AllowApiTokenLookupViaApi,
         /**
          * Ordered, comma-separated list of custom fields to show above the fold
@@ -325,10 +334,18 @@ public class SettingsServiceBean {
         Whether to display the publish text for every published version
         */
         DatasetPublishPopupCustomTextOnAllVersions,
+        /**
+         The message added to a popup upon dataset submit for review
+         */
+        DatasetSubmitForReviewPopupCustomText,
         /*
         Publish Disclaimer text. If this setting exists user must acknowledge before a Dataset can be published
          */
         PublishDatasetDisclaimerText,
+        /*
+        Submit for review Disclaimer text. If this setting exists user must acknowledge before a Dataset can be submitted for review
+         */
+        SubmitForReviewDatasetDisclaimerText,
         /*
         Whether Harvesting (OAI) service is enabled
         */

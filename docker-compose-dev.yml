@@ -231,7 +231,7 @@ services:
   dev_minio:
     container_name: "dev_minio"
     hostname: "minio"
-    image: minio/minio
+    image: pgsty/minio:latest
     restart: on-failure
     ports:
       - "9000:9000"
